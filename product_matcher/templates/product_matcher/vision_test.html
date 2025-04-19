@@ -1,0 +1,86 @@
+{% extends 'product_matcher/base.html' %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8">Google Cloud Vision Test</h1>
+
+    <!-- Upload Form -->
+    <form method="post" enctype="multipart/form-data" class="mb-8">
+        {% csrf_token %}
+        <div class="flex items-center gap-4">
+            <input type="file" name="image" accept="image/*" required class="border p-2 rounded">
+            <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                Analyze Image
+            </button>
+        </div>
+    </form>
+
+    {% if error %}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-8">
+            {{ error }}
+        </div>
+    {% endif %}
+
+    {% if results %}
+        <div class="grid md:grid-cols-2 gap-8">
+            <!-- Image Preview -->
+            <div>
+                <h2 class="text-xl font-semibold mb-4">Uploaded Image</h2>
+                <img src="{{ results.image_url }}" alt="Uploaded image" class="max-w-full rounded shadow-lg">
+            </div>
+
+            <!-- Results -->
+            <div>
+                <!-- Labels -->
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold mb-3">Labels</h2>
+                    <div class="space-y-2">
+                        {% for label in results.labels %}
+                            <div class="flex justify-between bg-gray-50 p-2 rounded">
+                                <span>{{ label.description }}</span>
+                                <span class="text-gray-600">{{ label.score }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Objects -->
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold mb-3">Objects</h2>
+                    <div class="space-y-2">
+                        {% for object in results.objects %}
+                            <div class="flex justify-between bg-gray-50 p-2 rounded">
+                                <span>{{ object.name }}</span>
+                                <span class="text-gray-600">{{ object.score }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Web Entities -->
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold mb-3">Web Entities</h2>
+                    <div class="space-y-2">
+                        {% for entity in results.web_entities %}
+                            <div class="flex justify-between bg-gray-50 p-2 rounded">
+                                <span>{{ entity.description }}</span>
+                                <span class="text-gray-600">{{ entity.score }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Text Detection -->
+                {% if results.text %}
+                    <div class="mb-6">
+                        <h2 class="text-xl font-semibold mb-3">Detected Text</h2>
+                        <div class="bg-gray-50 p-3 rounded">
+                            <pre class="whitespace-pre-wrap">{{ results.text }}</pre>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %} 
