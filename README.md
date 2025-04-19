@@ -28,8 +28,8 @@ A Django web application that uses Google Cloud Vision API to analyze images and
 
 1. Clone the repository:
 ```bash
-git clone [repository-url]
-cd ebay_tool_lister
+git clone https://github.com/neil-michalares/image-to-listing-tool.git
+cd image-to-listing-tool
 ```
 
 2. Create and activate a virtual environment:
@@ -132,4 +132,4 @@ python manage.py runserver
 
 ## License
 
-[Your chosen license] 
+MIT License
