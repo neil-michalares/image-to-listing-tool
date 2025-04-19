@@ -4,10 +4,12 @@ from django.core.files.storage import FileSystemStorage
 from django.http import JsonResponse
 from .models import ProductImage, EbayListing
 from ebaysdk.finding import Connection as Finding
+from ebaysdk.shopping import Connection as Shopping
 from ebaysdk.exception import ConnectionError
 from google.cloud import vision
 import os
 from dotenv import load_dotenv
+import re
 
 load_dotenv()
 
@@ -112,6 +114,45 @@ def results(request, image_id):
     except ProductImage.DoesNotExist:
         return redirect('home')
 
+def extract_ebay_item_id(url):
+    # Common eBay URL patterns
+    patterns = [
+        r'/itm/(?:[^/]+/)?(\d+)',  # Matches /itm/title/123456 or /itm/123456
+        r'item=(\d+)',             # Matches item=123456
+        r'ItemId=(\d+)',          # Matches ItemId=123456
+        r'/(\d{12})',             # Matches 12-digit item IDs in URL
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    return None
+
+def get_ebay_item_details(item_id):
+    try:
+        api = Shopping(domain='open.api.ebay.com',
+                      appid=os.getenv('EBAY_APP_ID'),
+                      config_file=None)
+        
+        response = api.execute('GetSingleItem', {
+            'ItemID': item_id,
+            'IncludeSelector': 'Details,ItemSpecifics'
+        })
+        
+        item = response.reply.Item
+        return {
+            'title': item.Title,
+            'price': f"${float(item.CurrentPrice.value):.2f}",
+            'currency': item.CurrentPrice._currencyID,
+            'condition': item.ConditionDisplayName if hasattr(item, 'ConditionDisplayName') else 'Not specified',
+            'location': item.Location if hasattr(item, 'Location') else 'Not specified',
+            'url': item.ViewItemURLForNaturalSearch if hasattr(item, 'ViewItemURLForNaturalSearch') else None
+        }
+    except Exception as e:
+        print(f"Error fetching eBay item details: {str(e)}")
+        return None
+
 def test_vision(request):
     # Clean up old file if it exists
     if 'temp_file' in request.session:
@@ -151,15 +192,23 @@ def test_vision(request):
             # Get web detection results
             web = web_response.web_detection
             
-            # Extract eBay-specific results
+            # Extract eBay-specific results with details
             ebay_results = []
             if web.pages_with_matching_images:
                 for page in web.pages_with_matching_images:
                     if 'ebay' in page.url.lower():
-                        ebay_results.append({
+                        item_id = extract_ebay_item_id(page.url)
+                        listing_info = {
                             'url': page.url,
                             'title': page.page_title if page.page_title else 'eBay Listing'
-                        })
+                        }
+                        
+                        if item_id:
+                            details = get_ebay_item_details(item_id)
+                            if details:
+                                listing_info.update(details)
+                        
+                        ebay_results.append(listing_info)
 
             # Collect results
             results = {

@@ -32,12 +32,30 @@
                 {% if results.web_matches.ebay_listings %}
                     <div class="mb-6">
                         <h2 class="text-xl font-semibold mb-3 text-green-600">Found eBay Listings</h2>
-                        <div class="space-y-2">
+                        <div class="space-y-4">
                             {% for listing in results.web_matches.ebay_listings %}
                                 <div class="bg-white p-4 rounded shadow">
-                                    <a href="{{ listing.url }}" target="_blank" class="text-blue-600 hover:text-blue-800">
+                                    <a href="{{ listing.url }}" target="_blank" class="text-blue-600 hover:text-blue-800 block mb-2 font-medium">
                                         {{ listing.title }}
                                     </a>
+                                    {% if listing.price %}
+                                        <div class="flex items-center justify-between text-sm">
+                                            <span class="text-gray-600">Price:</span>
+                                            <span class="font-semibold text-green-600">{{ listing.price }} {{ listing.currency }}</span>
+                                        </div>
+                                    {% endif %}
+                                    {% if listing.condition != 'Not specified' %}
+                                        <div class="flex items-center justify-between text-sm">
+                                            <span class="text-gray-600">Condition:</span>
+                                            <span>{{ listing.condition }}</span>
+                                        </div>
+                                    {% endif %}
+                                    {% if listing.location != 'Not specified' %}
+                                        <div class="flex items-center justify-between text-sm">
+                                            <span class="text-gray-600">Location:</span>
+                                            <span>{{ listing.location }}</span>
+                                        </div>
+                                    {% endif %}
                                 </div>
                             {% endfor %}
                         </div>
