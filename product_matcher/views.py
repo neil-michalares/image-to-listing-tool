@@ -113,10 +113,19 @@ def results(request, image_id):
         return redirect('home')
 
 def test_vision(request):
+    # Clean up old file if it exists
+    if 'temp_file' in request.session:
+        try:
+            fs = FileSystemStorage()
+            fs.delete(request.session['temp_file'])
+        except:
+            pass
+        del request.session['temp_file']
+
     if request.method == 'POST' and request.FILES.get('image'):
         image_file = request.FILES['image']
         fs = FileSystemStorage()
-        filename = fs.save(image_file.name, image_file)
+        filename = fs.save(f'temp/{image_file.name}', image_file)
         image_path = fs.path(filename)
         
         try:
@@ -136,6 +145,22 @@ def test_vision(request):
             web_response = client.web_detection(image=image)
             text_response = client.text_detection(image=image)
 
+            # Store the filename in session for cleanup on next request
+            request.session['temp_file'] = filename
+
+            # Get web detection results
+            web = web_response.web_detection
+            
+            # Extract eBay-specific results
+            ebay_results = []
+            if web.pages_with_matching_images:
+                for page in web.pages_with_matching_images:
+                    if 'ebay' in page.url.lower():
+                        ebay_results.append({
+                            'url': page.url,
+                            'title': page.page_title if page.page_title else 'eBay Listing'
+                        })
+
             # Collect results
             results = {
                 'labels': [
@@ -151,15 +176,36 @@ def test_vision(request):
                     for entity in web_response.web_detection.web_entities
                 ],
                 'text': text_response.text_annotations[0].description if text_response.text_annotations else None,
-                'image_url': fs.url(filename)
+                'image_url': fs.url(filename),
+                'web_matches': {
+                    'ebay_listings': ebay_results,
+                    'similar_images': [
+                        {'url': image.url}
+                        for image in web.visually_similar_images[:5]
+                    ] if web.visually_similar_images else [],
+                    'full_matches': [
+                        {'url': image.url}
+                        for image in web.full_matching_images[:5]
+                    ] if web.full_matching_images else [],
+                    'partial_matches': [
+                        {'url': image.url}
+                        for image in web.partial_matching_images[:5]
+                    ] if web.partial_matching_images else [],
+                    'pages': [
+                        {'url': page.url, 'title': page.page_title}
+                        for page in web.pages_with_matching_images[:5]
+                        if page.page_title  # Only include pages with titles
+                    ] if web.pages_with_matching_images else []
+                }
             }
             
             return render(request, 'product_matcher/vision_test.html', {'results': results})
             
         except Exception as e:
-            return render(request, 'product_matcher/vision_test.html', {'error': str(e)})
-        finally:
-            # Clean up the uploaded file
+            # Clean up the file if there's an error
             fs.delete(filename)
+            if 'temp_file' in request.session:
+                del request.session['temp_file']
+            return render(request, 'product_matcher/vision_test.html', {'error': str(e)})
     
     return render(request, 'product_matcher/vision_test.html')

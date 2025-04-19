@@ -23,13 +23,45 @@
 
     {% if results %}
         <div class="grid md:grid-cols-2 gap-8">
-            <!-- Image Preview -->
+            <!-- Left Column -->
             <div>
                 <h2 class="text-xl font-semibold mb-4">Uploaded Image</h2>
-                <img src="{{ results.image_url }}" alt="Uploaded image" class="max-w-full rounded shadow-lg">
+                <img src="{{ results.image_url }}" alt="Uploaded image" class="max-w-full rounded shadow-lg mb-6">
+
+                <!-- eBay Matches -->
+                {% if results.web_matches.ebay_listings %}
+                    <div class="mb-6">
+                        <h2 class="text-xl font-semibold mb-3 text-green-600">Found eBay Listings</h2>
+                        <div class="space-y-2">
+                            {% for listing in results.web_matches.ebay_listings %}
+                                <div class="bg-white p-4 rounded shadow">
+                                    <a href="{{ listing.url }}" target="_blank" class="text-blue-600 hover:text-blue-800">
+                                        {{ listing.title }}
+                                    </a>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+
+                <!-- Similar Products -->
+                {% if results.web_matches.similar_images %}
+                    <div class="mb-6">
+                        <h2 class="text-xl font-semibold mb-3">Similar Images</h2>
+                        <div class="grid grid-cols-2 gap-4">
+                            {% for image in results.web_matches.similar_images %}
+                                <div class="bg-white p-2 rounded shadow">
+                                    <a href="{{ image.url }}" target="_blank">
+                                        <img src="{{ image.url }}" alt="Similar image" class="w-full h-32 object-cover rounded">
+                                    </a>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
             </div>
 
-            <!-- Results -->
+            <!-- Right Column -->
             <div>
                 <!-- Labels -->
                 <div class="mb-6">
@@ -69,6 +101,22 @@
                         {% endfor %}
                     </div>
                 </div>
+
+                <!-- Web Pages -->
+                {% if results.web_matches.pages %}
+                    <div class="mb-6">
+                        <h2 class="text-xl font-semibold mb-3">Related Web Pages</h2>
+                        <div class="space-y-2">
+                            {% for page in results.web_matches.pages %}
+                                <div class="bg-gray-50 p-3 rounded">
+                                    <a href="{{ page.url }}" target="_blank" class="text-blue-600 hover:text-blue-800">
+                                        {{ page.title }}
+                                    </a>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
 
                 <!-- Text Detection -->
                 {% if results.text %}
