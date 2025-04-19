@@ -1,0 +1,88 @@
+{% extends 'product_matcher/base.html' %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8">Upload History</h1>
+
+    {% for item in image_data %}
+    <div class="bg-white rounded-lg shadow-md mb-6 p-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Image and Basic Info -->
+            <div class="col-span-1">
+                <img src="{{ item.image.image.url }}" alt="Uploaded product" class="w-full h-48 object-cover rounded-lg mb-4">
+                <p class="text-gray-600">Uploaded: {{ item.image.uploaded_at|date:"M d, Y H:i" }}</p>
+            </div>
+
+            <!-- Vision API Results -->
+            <div class="col-span-1">
+                {% if item.vision_call %}
+                    <h3 class="font-semibold text-lg mb-2">Vision API Results</h3>
+                    {% if item.vision_call.labels %}
+                        <div class="mb-4">
+                            <h4 class="font-medium text-gray-700">Top Labels:</h4>
+                            <div class="flex flex-wrap gap-2">
+                                {% for label in item.vision_call.labels|slice:":5" %}
+                                    <span class="bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded">
+                                        {{ label.description }} ({{ label.score|floatformat:2 }})
+                                    </span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                    <a href="{% url 'vision_call_detail' item.vision_call.id %}" class="text-blue-600 hover:text-blue-800">
+                        View full analysis →
+                    </a>
+                {% else %}
+                    <p class="text-gray-500">No Vision API results available</p>
+                {% endif %}
+            </div>
+
+            <!-- eBay Listings -->
+            <div class="col-span-1">
+                <h3 class="font-semibold text-lg mb-2">eBay Listings ({{ item.total_listings }})</h3>
+                {% if item.ebay_listings %}
+                    <ul class="space-y-2">
+                        {% for listing in item.ebay_listings %}
+                            <li class="border-b pb-2">
+                                <a href="{{ listing.url }}" target="_blank" class="text-blue-600 hover:text-blue-800">
+                                    {{ listing.title|truncatechars:50 }}
+                                </a>
+                                <p class="text-green-600">${{ listing.price }}</p>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                    {% if item.total_listings > 5 %}
+                        <p class="mt-2 text-gray-600">
+                            And {{ item.total_listings|add:"-5" }} more listings...
+                        </p>
+                    {% endif %}
+                {% else %}
+                    <p class="text-gray-500">No eBay listings found</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="text-center py-8">
+        <p class="text-gray-600">No images uploaded yet.</p>
+    </div>
+    {% endfor %}
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="flex justify-center space-x-4 mt-8">
+        {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Previous</a>
+        {% endif %}
+        
+        <span class="px-4 py-2">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Next</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %} 
