@@ -1,9 +1,10 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 from django.core.files.base import ContentFile
 from django.http import JsonResponse
-from .models import ProductImage, EbayListing
+from django.core.paginator import Paginator
+from .models import ProductImage, EbayListing, VisionAPICall
 from ebaysdk.finding import Connection as Finding
 from ebaysdk.shopping import Connection as Shopping
 from ebaysdk.exception import ConnectionError
@@ -16,6 +17,8 @@ from urllib.parse import urlparse
 import uuid
 import base64
 from django.views.decorators.csrf import csrf_exempt
+import time
+from google.protobuf.json_format import MessageToDict
 
 load_dotenv()
 
@@ -154,6 +157,35 @@ def get_ebay_item_details(item_id):
 @csrf_exempt
 def test_vision(request):
     """View for testing the Google Cloud Vision API."""
+    if request.method == 'POST' and (request.FILES.get('image') or request.POST.get('image_data')):
+        try:
+            # Handle file upload or clipboard data
+            if request.FILES.get('image'):
+                image_file = request.FILES['image']
+                fs = FileSystemStorage()
+                filename = fs.save(f'temp/{uuid.uuid4()}.jpg', image_file)
+                file_path = os.path.join(settings.MEDIA_ROOT, filename)
+            elif request.POST.get('image_data'):
+                # Handle clipboard data
+                image_data = request.POST['image_data'].split(',')[1]
+                image_bytes = base64.b64decode(image_data)
+                
+                # Save to temporary file
+                filename = f'temp/{uuid.uuid4()}.jpg'
+                file_path = os.path.join(settings.MEDIA_ROOT, filename)
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                
+                with open(file_path, 'wb') as f:
+                    f.write(image_bytes)
+            
+            # Process the image and return results
+            return process_image(request, file_path)
+            
+        except Exception as e:
+            return render(request, 'product_matcher/test_vision.html', {
+                'error': f'Error processing image: {str(e)}'
+            })
+    
     return render(request, 'product_matcher/test_vision.html')
 
 def process_image(request, file_path):
@@ -161,9 +193,20 @@ def process_image(request, file_path):
         # Initialize Google Cloud Vision client
         client = vision.ImageAnnotatorClient()
 
-        # Read the image file
+        # Get or create ProductImage instance
+        fs = FileSystemStorage()
+        relative_path = os.path.relpath(file_path, fs.location)
+        image_url = fs.url(relative_path)
+        
+        # Create ProductImage instance if it doesn't exist
         with open(file_path, 'rb') as f:
             image_content = f.read()
+            product_image, created = ProductImage.objects.get_or_create(
+                image=relative_path
+            )
+
+        # Record start time for API call
+        start_time = time.time()
 
         # Create image object
         image = vision.Image(content=image_content)
@@ -173,8 +216,34 @@ def process_image(request, file_path):
         web_response = client.web_detection(image=image)
         text_response = client.text_detection(image=image)
 
+        # Calculate processing time
+        processing_time = int((time.time() - start_time) * 1000)  # Convert to milliseconds
+
         # Get web detection results
         web = web_response.web_detection
+
+        # Store API call data
+        vision_call = VisionAPICall.objects.create(
+            product_image=product_image,
+            api_response={
+                'label_response': MessageToDict(label_response._pb),
+                'web_response': MessageToDict(web_response._pb),
+                'text_response': MessageToDict(text_response._pb)
+            },
+            labels=[{
+                'description': label.description,
+                'score': label.score
+            } for label in label_response.label_annotations],
+            text=[{
+                'description': text.description,
+                'locale': text.locale if hasattr(text, 'locale') else None
+            } for text in text_response.text_annotations] if text_response.text_annotations else [],
+            detected_objects=[{
+                'url': image.url
+                for image in web.visually_similar_images
+            }] if web.visually_similar_images else [],
+            processing_time_ms=processing_time
+        )
         
         # Extract eBay-specific results with details
         ebay_results = []
@@ -194,12 +263,7 @@ def process_image(request, file_path):
                     
                     ebay_results.append(listing_info)
 
-        # Get relative URL for the image
-        fs = FileSystemStorage()
-        relative_path = os.path.relpath(file_path, fs.location)
-        image_url = fs.url(relative_path)
-
-        # Collect results
+        # Collect results for template
         results = {
             'image_url': image_url,
             'labels': [
@@ -216,11 +280,12 @@ def process_image(request, file_path):
                 'similar_images': [
                     {'url': image.url}
                     for image in web.visually_similar_images[:5]
+                    if is_image_accessible(image.url)
                 ] if web.visually_similar_images else [],
                 'pages': [
                     {'url': page.url, 'title': page.page_title}
                     for page in web.pages_with_matching_images[:5]
-                    if page.page_title  # Only include pages with titles
+                    if page.page_title
                 ] if web.pages_with_matching_images else []
             }
         }
@@ -239,3 +304,60 @@ def process_image(request, file_path):
         return render(request, 'product_matcher/test_vision.html', {
             'error': f'Error processing image: {str(e)}'
         })
+
+def history(request):
+    # Get all product images ordered by upload date
+    images = ProductImage.objects.all().order_by('-uploaded_at')
+    
+    # Set up pagination - 10 images per page
+    paginator = Paginator(images, 10)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    # For each image on the current page, get its Vision API call and eBay listings
+    image_data = []
+    for image in page_obj:
+        # Get the most recent Vision API call for this image
+        vision_call = image.vision_api_calls.first()
+        
+        # Get associated eBay listings
+        ebay_listings = image.ebay_listings.all()[:5]  # Limit to 5 listings per image
+        
+        image_data.append({
+            'image': image,
+            'vision_call': vision_call,
+            'ebay_listings': ebay_listings,
+            'total_listings': image.ebay_listings.count()
+        })
+    
+    context = {
+        'page_obj': page_obj,
+        'image_data': image_data,
+    }
+    
+    return render(request, 'product_matcher/history.html', context)
+
+def vision_call_detail(request, call_id):
+    # Get the specific Vision API call or return 404
+    vision_call = get_object_or_404(VisionAPICall, id=call_id)
+    
+    context = {
+        'vision_call': vision_call,
+        'labels': vision_call.labels if vision_call.labels else [],
+        'text': vision_call.text if vision_call.text else [],
+        'detected_objects': vision_call.detected_objects if vision_call.detected_objects else [],
+        'processing_time': vision_call.processing_time_ms,
+        'ebay_listings': vision_call.product_image.ebay_listings.all(),
+    }
+    
+    return render(request, 'product_matcher/vision_call_detail.html', context)
+
+def is_image_accessible(url):
+    try:
+        # Set a short timeout to avoid long waits
+        response = requests.head(url, timeout=3)
+        # Check if the response is successful and the content type is an image
+        return (response.status_code == 200 and 
+                response.headers.get('content-type', '').startswith('image/'))
+    except:
+        return False
