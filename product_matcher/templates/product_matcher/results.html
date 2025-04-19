@@ -2,36 +2,38 @@
 
 {% block content %}
 <div class="max-w-6xl mx-auto">
-    <div class="mb-8">
-        <h1 class="text-3xl font-bold mb-4">Search Results</h1>
-        <div class="bg-white rounded-lg shadow-lg p-4">
+    <div class="mb-10">
+        <h1 class="text-4xl font-bold mb-6 text-gray-900">Search Results</h1>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 transition-all">
             <img src="{{ product_image.image.url }}" alt="Uploaded Product" class="max-h-64 mx-auto rounded-lg">
         </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {% for listing in listings %}
-        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div class="p-6">
-                <h2 class="text-xl font-semibold mb-2 line-clamp-2">{{ listing.title }}</h2>
-                <div class="space-y-2">
-                    <p class="text-2xl font-bold text-blue-600">${{ listing.price }}</p>
-                    <p class="text-gray-600"><span class="font-semibold">Condition:</span> {{ listing.condition }}</p>
-                    <p class="text-gray-600"><span class="font-semibold">Location:</span> {{ listing.location }}</p>
-                    <p class="text-gray-600"><span class="font-semibold">Seller:</span> {{ listing.seller }}</p>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition-all hover:border-[#10a37f]">
+            <div class="p-8">
+                <h2 class="text-xl font-semibold mb-4 line-clamp-2 text-gray-900">{{ listing.title }}</h2>
+                <div class="space-y-3">
+                    <p class="text-2xl font-bold text-[#10a37f]">${{ listing.price }}</p>
+                    <div class="text-gray-600 space-y-2">
+                        <p><span class="font-medium">Condition:</span> {{ listing.condition }}</p>
+                        <p><span class="font-medium">Location:</span> {{ listing.location }}</p>
+                        <p><span class="font-medium">Seller:</span> {{ listing.seller }}</p>
+                    </div>
                 </div>
-                <div class="mt-4">
+                <div class="mt-6">
                     <a href="{{ listing.url }}" target="_blank" rel="noopener noreferrer" 
-                       class="block w-full text-center bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                       class="block w-full text-center gradient-bg text-white px-6 py-3 rounded-lg hover:opacity-90 transition-all font-medium">
                         View on eBay
                     </a>
                 </div>
             </div>
         </div>
         {% empty %}
-        <div class="col-span-full text-center py-8">
-            <p class="text-gray-600 text-lg">No matching listings found. Try uploading a different image.</p>
-            <a href="{% url 'home' %}" class="inline-block mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+        <div class="col-span-full text-center py-12">
+            <p class="text-gray-600 text-xl mb-6">No matching listings found. Try uploading a different image.</p>
+            <a href="{% url 'home' %}" class="inline-block gradient-bg text-white px-8 py-3 rounded-lg hover:opacity-90 transition-all font-medium">
                 Try Again
             </a>
         </div>
@@ -39,8 +41,8 @@
     </div>
 
     {% if listings %}
-    <div class="mt-8 text-center">
-        <a href="{% url 'home' %}" class="inline-block bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700 transition-colors">
+    <div class="mt-12 text-center">
+        <a href="{% url 'home' %}" class="inline-block bg-gray-900 text-white px-8 py-3 rounded-lg hover:bg-gray-800 transition-all font-medium">
             Search Another Product
         </a>
     </div>

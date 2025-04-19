@@ -1,30 +1,99 @@
 {% extends 'product_matcher/base.html' %}
 
 {% block content %}
+<!-- Hero Section -->
+<div class="max-w-6xl mx-auto mb-20">
+    <div class="text-center mb-16">
+        <h1 class="text-5xl font-bold mb-6 gradient-text">List Smarter, Sell Faster</h1>
+        <p class="text-xl text-gray-600 max-w-3xl mx-auto">Transform your eBay listing process with AI-powered image analysis. Get instant access to competing listings and market insights.</p>
+    </div>
+
+    <!-- Feature Grid -->
+    <div class="grid md:grid-cols-3 gap-8 mb-16">
+        <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200 transition-all hover:border-[#10a37f]">
+            <div class="w-12 h-12 gradient-bg rounded-lg flex items-center justify-center mb-4">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold mb-2">Instant Analysis</h3>
+            <p class="text-gray-600">Upload a photo and get immediate insights about your product using advanced AI technology.</p>
+        </div>
+        <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200 transition-all hover:border-[#10a37f]">
+            <div class="w-12 h-12 gradient-bg rounded-lg flex items-center justify-center mb-4">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold mb-2">Market Research</h3>
+            <p class="text-gray-600">Compare prices and listings to make informed decisions about your product pricing.</p>
+        </div>
+        <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200 transition-all hover:border-[#10a37f]">
+            <div class="w-12 h-12 gradient-bg rounded-lg flex items-center justify-center mb-4">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold mb-2">Time Saving</h3>
+            <p class="text-gray-600">Reduce research time by automatically finding similar products and market prices.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Section -->
 <div class="max-w-2xl mx-auto">
-    <div class="bg-white rounded-lg shadow-lg p-8">
-        <h1 class="text-3xl font-bold text-center mb-8">Find Similar Products on eBay</h1>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-10 transition-all">
+        <h2 class="text-3xl font-bold text-center mb-4 text-gray-900">Try It Now</h2>
+        <p class="text-center text-gray-600 mb-8">Upload a product image to see how it works</p>
         
-        <form action="{% url 'upload_image' %}" method="post" enctype="multipart/form-data" class="space-y-6">
+        <form action="{% url 'upload_image' %}" method="post" enctype="multipart/form-data" class="space-y-8">
             {% csrf_token %}
             <div class="flex flex-col items-center">
-                <label for="image" class="w-full max-w-lg flex flex-col items-center px-4 py-6 bg-white rounded-lg border-2 border-dashed border-gray-300 cursor-pointer hover:border-blue-500">
-                    <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                <label for="image" class="w-full max-w-lg flex flex-col items-center px-6 py-8 bg-white rounded-xl border-2 border-dashed border-gray-200 cursor-pointer transition-all hover:border-[#10a37f]">
+                    <svg class="w-14 h-14 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                     </svg>
-                    <span class="mt-2 text-gray-600">Drop your image here or click to upload</span>
+                    <span class="mt-4 text-lg font-medium text-gray-600">Drop your image here or click to upload</span>
                     <input type="file" name="image" id="image" class="hidden" accept="image/*" required>
                 </label>
-                <div id="preview" class="mt-4 hidden">
-                    <img src="" alt="Preview" class="max-w-xs rounded-lg shadow-md">
+                <div id="preview" class="mt-6 hidden">
+                    <img src="" alt="Preview" class="max-w-xs rounded-lg shadow-lg">
                 </div>
             </div>
             <div class="text-center">
-                <button type="submit" class="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors">
+                <button type="submit" class="gradient-bg text-white px-8 py-3 rounded-lg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#10a37f] focus:ring-offset-2 transition-all text-lg font-medium">
                     Search on eBay
                 </button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- How It Works Section -->
+<div class="max-w-5xl mx-auto mt-20">
+    <h2 class="text-3xl font-bold text-center mb-12 text-gray-900">How It Works</h2>
+    <div class="grid md:grid-cols-3 gap-8">
+        <div class="text-center">
+            <div class="w-16 h-16 gradient-bg rounded-full flex items-center justify-center mx-auto mb-4">
+                <span class="text-2xl font-bold text-white">1</span>
+            </div>
+            <h3 class="text-lg font-semibold mb-2">Upload Image</h3>
+            <p class="text-gray-600">Simply upload or drag & drop your product image</p>
+        </div>
+        <div class="text-center">
+            <div class="w-16 h-16 gradient-bg rounded-full flex items-center justify-center mx-auto mb-4">
+                <span class="text-2xl font-bold text-white">2</span>
+            </div>
+            <h3 class="text-lg font-semibold mb-2">AI Analysis</h3>
+            <p class="text-gray-600">Our AI analyzes your image and finds similar products</p>
+        </div>
+        <div class="text-center">
+            <div class="w-16 h-16 gradient-bg rounded-full flex items-center justify-center mx-auto mb-4">
+                <span class="text-2xl font-bold text-white">3</span>
+            </div>
+            <h3 class="text-lg font-semibold mb-2">Get Results</h3>
+            <p class="text-gray-600">View matching listings and market insights</p>
+        </div>
     </div>
 </div>
 

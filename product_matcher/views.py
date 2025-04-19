@@ -153,83 +153,8 @@ def get_ebay_item_details(item_id):
 
 @csrf_exempt
 def test_vision(request):
-    if request.method != 'POST':
-        return render(request, 'product_matcher/vision_test.html')
-
-    # Clean up previous temporary file if it exists
-    if 'temp_file' in request.session:
-        try:
-            os.remove(request.session['temp_file'])
-        except (FileNotFoundError, OSError):
-            pass
-        del request.session['temp_file']
-
-    # Handle file upload
-    if 'image' in request.FILES:
-        uploaded_file = request.FILES['image']
-        fs = FileSystemStorage()
-        filename = fs.save(uploaded_file.name, uploaded_file)
-        file_path = fs.path(filename)
-        request.session['temp_file'] = file_path
-        return process_image(request, file_path)
-
-    # Handle clipboard image data
-    elif 'image_data' in request.POST:
-        try:
-            # Extract base64 data
-            image_data = request.POST['image_data']
-            if ',' in image_data:
-                image_data = image_data.split(',')[1]
-            
-            # Decode base64 data
-            image_bytes = base64.b64decode(image_data)
-            
-            # Save to temporary file
-            fs = FileSystemStorage()
-            filename = f"clipboard_{uuid.uuid4()}.png"
-            file_path = fs.path(filename)
-            
-            with open(file_path, 'wb') as f:
-                f.write(image_bytes)
-            
-            request.session['temp_file'] = file_path
-            return process_image(request, file_path)
-            
-        except Exception as e:
-            return render(request, 'product_matcher/vision_test.html', {
-                'error': f'Invalid image data: {str(e)}'
-            })
-
-    # Handle image URL
-    elif 'image_url' in request.POST:
-        image_url = request.POST['image_url']
-        try:
-            # Download image from URL
-            response = requests.get(image_url)
-            if response.status_code != 200:
-                return render(request, 'product_matcher/vision_test.html', {
-                    'error': f'Failed to fetch image from URL: HTTP {response.status_code}'
-                })
-            
-            # Save to temporary file
-            fs = FileSystemStorage()
-            filename = f"url_{uuid.uuid4()}{os.path.splitext(image_url)[1] or '.jpg'}"
-            file_path = fs.path(filename)
-            
-            with open(file_path, 'wb') as f:
-                f.write(response.content)
-            
-            request.session['temp_file'] = file_path
-            return process_image(request, file_path)
-            
-        except Exception as e:
-            return render(request, 'product_matcher/vision_test.html', {
-                'error': f'Failed to process image URL: {str(e)}'
-            })
-
-    return render(request, 'product_matcher/vision_test.html', {
-        'error': 'No image provided'
-    })
+    """View for testing the Google Cloud Vision API."""
+    return render(request, 'product_matcher/test_vision.html')
 
 def process_image(request, file_path):
     try:
@@ -300,7 +225,7 @@ def process_image(request, file_path):
             }
         }
 
-        return render(request, 'product_matcher/vision_test.html', {'results': results})
+        return render(request, 'product_matcher/test_vision.html', {'results': results})
 
     except Exception as e:
         # Clean up the file if there's an error
@@ -311,6 +236,6 @@ def process_image(request, file_path):
         except (FileNotFoundError, OSError):
             pass
         
-        return render(request, 'product_matcher/vision_test.html', {
+        return render(request, 'product_matcher/test_vision.html', {
             'error': f'Error processing image: {str(e)}'
         })
