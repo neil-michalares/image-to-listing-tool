@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
+from django.core.files.base import ContentFile
 from django.http import JsonResponse
 from .models import ProductImage, EbayListing
 from ebaysdk.finding import Connection as Finding
@@ -10,6 +11,11 @@ from google.cloud import vision
 import os
 from dotenv import load_dotenv
 import re
+import requests
+from urllib.parse import urlparse
+import uuid
+import base64
+from django.views.decorators.csrf import csrf_exempt
 
 load_dotenv()
 
@@ -39,10 +45,6 @@ def upload_image(request):
             label_response = client.label_detection(image=image)
             labels = label_response.label_annotations
 
-            # Perform object detection
-            object_response = client.object_localization(image=image)
-            objects = object_response.localized_object_annotations
-
             # Perform web detection
             web_response = client.web_detection(image=image)
             web = web_response.web_detection
@@ -56,16 +58,12 @@ def upload_image(request):
                     search_terms.append(label.description)
                     print("label API",label.description)
 
-            # Add detected objects
-            for obj in objects[:3]:  # Top 3 objects
-                if obj.score > 0.8:  # Only high confidence objects
-                    search_terms.append(obj.name)
-                    print("obj API",obj.name)
             # Add web entities
             for entity in web.web_entities[:3]:  # Top 3 web entities
                 if entity.score > 0.8:  # Only high confidence entities
                     search_terms.append(entity.description)
                     print("entity API",entity.description)
+
             # Create search query from the collected terms
             search_query = ' '.join(search_terms)
             
@@ -153,108 +151,166 @@ def get_ebay_item_details(item_id):
         print(f"Error fetching eBay item details: {str(e)}")
         return None
 
+@csrf_exempt
 def test_vision(request):
-    # Clean up old file if it exists
+    if request.method != 'POST':
+        return render(request, 'product_matcher/vision_test.html')
+
+    # Clean up previous temporary file if it exists
     if 'temp_file' in request.session:
         try:
-            fs = FileSystemStorage()
-            fs.delete(request.session['temp_file'])
-        except:
+            os.remove(request.session['temp_file'])
+        except (FileNotFoundError, OSError):
             pass
         del request.session['temp_file']
 
-    if request.method == 'POST' and request.FILES.get('image'):
-        image_file = request.FILES['image']
+    # Handle file upload
+    if 'image' in request.FILES:
+        uploaded_file = request.FILES['image']
         fs = FileSystemStorage()
-        filename = fs.save(f'temp/{image_file.name}', image_file)
-        image_path = fs.path(filename)
-        
+        filename = fs.save(uploaded_file.name, uploaded_file)
+        file_path = fs.path(filename)
+        request.session['temp_file'] = file_path
+        return process_image(request, file_path)
+
+    # Handle clipboard image data
+    elif 'image_data' in request.POST:
         try:
-            # Initialize Google Cloud Vision client
-            client = vision.ImageAnnotatorClient()
-
-            # Read the image file
-            with open(image_path, 'rb') as image_file:
-                content = image_file.read()
-
-            # Create image object
-            image = vision.Image(content=content)
-
-            # Perform various detections
-            label_response = client.label_detection(image=image)
-            object_response = client.object_localization(image=image)
-            web_response = client.web_detection(image=image)
-            text_response = client.text_detection(image=image)
-
-            # Store the filename in session for cleanup on next request
-            request.session['temp_file'] = filename
-
-            # Get web detection results
-            web = web_response.web_detection
+            # Extract base64 data
+            image_data = request.POST['image_data']
+            if ',' in image_data:
+                image_data = image_data.split(',')[1]
             
-            # Extract eBay-specific results with details
-            ebay_results = []
-            if web.pages_with_matching_images:
-                for page in web.pages_with_matching_images:
-                    if 'ebay' in page.url.lower():
-                        item_id = extract_ebay_item_id(page.url)
-                        listing_info = {
-                            'url': page.url,
-                            'title': page.page_title if page.page_title else 'eBay Listing'
-                        }
-                        
-                        if item_id:
-                            details = get_ebay_item_details(item_id)
-                            if details:
-                                listing_info.update(details)
-                        
-                        ebay_results.append(listing_info)
-
-            # Collect results
-            results = {
-                'labels': [
-                    {'description': label.description, 'score': f"{label.score:.2%}"}
-                    for label in label_response.label_annotations
-                ],
-                'objects': [
-                    {'name': obj.name, 'score': f"{obj.score:.2%}"}
-                    for obj in object_response.localized_object_annotations
-                ],
-                'web_entities': [
-                    {'description': entity.description, 'score': f"{entity.score:.2%}"}
-                    for entity in web_response.web_detection.web_entities
-                ],
-                'text': text_response.text_annotations[0].description if text_response.text_annotations else None,
-                'image_url': fs.url(filename),
-                'web_matches': {
-                    'ebay_listings': ebay_results,
-                    'similar_images': [
-                        {'url': image.url}
-                        for image in web.visually_similar_images[:5]
-                    ] if web.visually_similar_images else [],
-                    'full_matches': [
-                        {'url': image.url}
-                        for image in web.full_matching_images[:5]
-                    ] if web.full_matching_images else [],
-                    'partial_matches': [
-                        {'url': image.url}
-                        for image in web.partial_matching_images[:5]
-                    ] if web.partial_matching_images else [],
-                    'pages': [
-                        {'url': page.url, 'title': page.page_title}
-                        for page in web.pages_with_matching_images[:5]
-                        if page.page_title  # Only include pages with titles
-                    ] if web.pages_with_matching_images else []
-                }
-            }
+            # Decode base64 data
+            image_bytes = base64.b64decode(image_data)
             
-            return render(request, 'product_matcher/vision_test.html', {'results': results})
+            # Save to temporary file
+            fs = FileSystemStorage()
+            filename = f"clipboard_{uuid.uuid4()}.png"
+            file_path = fs.path(filename)
+            
+            with open(file_path, 'wb') as f:
+                f.write(image_bytes)
+            
+            request.session['temp_file'] = file_path
+            return process_image(request, file_path)
             
         except Exception as e:
-            # Clean up the file if there's an error
-            fs.delete(filename)
+            return render(request, 'product_matcher/vision_test.html', {
+                'error': f'Invalid image data: {str(e)}'
+            })
+
+    # Handle image URL
+    elif 'image_url' in request.POST:
+        image_url = request.POST['image_url']
+        try:
+            # Download image from URL
+            response = requests.get(image_url)
+            if response.status_code != 200:
+                return render(request, 'product_matcher/vision_test.html', {
+                    'error': f'Failed to fetch image from URL: HTTP {response.status_code}'
+                })
+            
+            # Save to temporary file
+            fs = FileSystemStorage()
+            filename = f"url_{uuid.uuid4()}{os.path.splitext(image_url)[1] or '.jpg'}"
+            file_path = fs.path(filename)
+            
+            with open(file_path, 'wb') as f:
+                f.write(response.content)
+            
+            request.session['temp_file'] = file_path
+            return process_image(request, file_path)
+            
+        except Exception as e:
+            return render(request, 'product_matcher/vision_test.html', {
+                'error': f'Failed to process image URL: {str(e)}'
+            })
+
+    return render(request, 'product_matcher/vision_test.html', {
+        'error': 'No image provided'
+    })
+
+def process_image(request, file_path):
+    try:
+        # Initialize Google Cloud Vision client
+        client = vision.ImageAnnotatorClient()
+
+        # Read the image file
+        with open(file_path, 'rb') as f:
+            image_content = f.read()
+
+        # Create image object
+        image = vision.Image(content=image_content)
+
+        # Perform various detections
+        label_response = client.label_detection(image=image)
+        web_response = client.web_detection(image=image)
+        text_response = client.text_detection(image=image)
+
+        # Get web detection results
+        web = web_response.web_detection
+        
+        # Extract eBay-specific results with details
+        ebay_results = []
+        if web.pages_with_matching_images:
+            for page in web.pages_with_matching_images:
+                if 'ebay' in page.url.lower():
+                    item_id = extract_ebay_item_id(page.url)
+                    listing_info = {
+                        'url': page.url,
+                        'title': page.page_title if page.page_title else 'eBay Listing'
+                    }
+                    
+                    if item_id:
+                        details = get_ebay_item_details(item_id)
+                        if details:
+                            listing_info.update(details)
+                    
+                    ebay_results.append(listing_info)
+
+        # Get relative URL for the image
+        fs = FileSystemStorage()
+        relative_path = os.path.relpath(file_path, fs.location)
+        image_url = fs.url(relative_path)
+
+        # Collect results
+        results = {
+            'image_url': image_url,
+            'labels': [
+                {'description': label.description, 'score': f"{label.score:.2%}"}
+                for label in label_response.label_annotations
+            ],
+            'web_entities': [
+                {'description': entity.description, 'score': f"{entity.score:.2%}"}
+                for entity in web_response.web_detection.web_entities
+            ],
+            'text': text_response.text_annotations[0].description if text_response.text_annotations else None,
+            'web_matches': {
+                'ebay_listings': ebay_results,
+                'similar_images': [
+                    {'url': image.url}
+                    for image in web.visually_similar_images[:5]
+                ] if web.visually_similar_images else [],
+                'pages': [
+                    {'url': page.url, 'title': page.page_title}
+                    for page in web.pages_with_matching_images[:5]
+                    if page.page_title  # Only include pages with titles
+                ] if web.pages_with_matching_images else []
+            }
+        }
+
+        return render(request, 'product_matcher/vision_test.html', {'results': results})
+
+    except Exception as e:
+        # Clean up the file if there's an error
+        try:
+            os.remove(file_path)
             if 'temp_file' in request.session:
                 del request.session['temp_file']
-            return render(request, 'product_matcher/vision_test.html', {'error': str(e)})
-    
-    return render(request, 'product_matcher/vision_test.html')
+        except (FileNotFoundError, OSError):
+            pass
+        
+        return render(request, 'product_matcher/vision_test.html', {
+            'error': f'Error processing image: {str(e)}'
+        })
