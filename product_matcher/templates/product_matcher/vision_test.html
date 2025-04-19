@@ -1,0 +1,276 @@
+{% extends 'product_matcher/base.html' %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8">Google Cloud Vision Test</h1>
+
+    <!-- Upload Form -->
+    <form method="post" enctype="multipart/form-data" class="mb-8 space-y-4" id="imageForm">
+        {% csrf_token %}
+        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <div class="space-y-4">
+                <!-- Upload Area -->
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center" id="dropArea">
+                    <input type="file" name="image" id="image-upload" accept="image/*" class="hidden">
+                    <input type="hidden" name="image_url" id="image-url">
+                    <input type="hidden" name="image_data" id="clipboard-image">
+                    
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-center">
+                            <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <div id="upload-text" class="text-gray-600">
+                            <p class="font-medium">Drop an image here, paste from clipboard,</p>
+                            <p>or <button type="button" id="browse-button" class="text-blue-600 hover:text-blue-800 font-medium">browse</button></p>
+                        </div>
+                        <div id="preview-container" class="hidden">
+                            <img id="preview-image" class="max-h-64 mx-auto rounded shadow-lg">
+                            <button type="button" id="remove-image" class="mt-4 text-red-600 hover:text-red-800">Remove Image</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="flex justify-end">
+                    <button type="submit" id="submit-button" class="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        Analyze Image
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    {% if error %}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-8">
+            {{ error }}
+        </div>
+    {% endif %}
+
+    {% if results %}
+        <div class="grid md:grid-cols-2 gap-8">
+            <!-- Left Column -->
+            <div>
+                <h2 class="text-xl font-semibold mb-4">Uploaded Image</h2>
+                <img src="{{ results.image_url }}" alt="Uploaded image" class="max-w-full rounded shadow-lg mb-6">
+
+                <!-- eBay Matches -->
+                {% if results.web_matches.ebay_listings %}
+                    <div class="mb-6">
+                        <h2 class="text-xl font-semibold mb-3 text-green-600">Found eBay Listings</h2>
+                        <div class="space-y-4">
+                            {% for listing in results.web_matches.ebay_listings %}
+                                <div class="bg-white p-4 rounded shadow">
+                                    <a href="{{ listing.url }}" target="_blank" class="text-blue-600 hover:text-blue-800 block mb-2 font-medium">
+                                        {{ listing.title }}
+                                    </a>
+                                    {% if listing.price %}
+                                        <div class="flex items-center justify-between text-sm">
+                                            <span class="text-gray-600">Price:</span>
+                                            <span class="font-semibold text-green-600">{{ listing.price }} {{ listing.currency }}</span>
+                                        </div>
+                                    {% endif %}
+                                    {% if listing.condition != 'Not specified' %}
+                                        <div class="flex items-center justify-between text-sm">
+                                            <span class="text-gray-600">Condition:</span>
+                                            <span>{{ listing.condition }}</span>
+                                        </div>
+                                    {% endif %}
+                                    {% if listing.location != 'Not specified' %}
+                                        <div class="flex items-center justify-between text-sm">
+                                            <span class="text-gray-600">Location:</span>
+                                            <span>{{ listing.location }}</span>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+
+                <!-- Similar Products -->
+                {% if results.web_matches.similar_images %}
+                    <div class="mb-6">
+                        <h2 class="text-xl font-semibold mb-3">Similar Images</h2>
+                        <div class="grid grid-cols-2 gap-4">
+                            {% for image in results.web_matches.similar_images %}
+                                <div class="bg-white p-2 rounded shadow">
+                                    <a href="{{ image.url }}" target="_blank">
+                                        <img src="{{ image.url }}" alt="Similar image" class="w-full h-32 object-cover rounded">
+                                    </a>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Right Column -->
+            <div>
+                <!-- Labels -->
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold mb-3">Labels</h2>
+                    <div class="space-y-2">
+                        {% for label in results.labels %}
+                            <div class="flex justify-between bg-gray-50 p-2 rounded">
+                                <span>{{ label.description }}</span>
+                                <span class="text-gray-600">{{ label.score }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Objects -->
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold mb-3">Objects</h2>
+                    <div class="space-y-2">
+                        {% for object in results.objects %}
+                            <div class="flex justify-between bg-gray-50 p-2 rounded">
+                                <span>{{ object.name }}</span>
+                                <span class="text-gray-600">{{ object.score }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Web Entities -->
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold mb-3">Web Entities</h2>
+                    <div class="space-y-2">
+                        {% for entity in results.web_entities %}
+                            <div class="flex justify-between bg-gray-50 p-2 rounded">
+                                <span>{{ entity.description }}</span>
+                                <span class="text-gray-600">{{ entity.score }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Web Pages -->
+                {% if results.web_matches.pages %}
+                    <div class="mb-6">
+                        <h2 class="text-xl font-semibold mb-3">Related Web Pages</h2>
+                        <div class="space-y-2">
+                            {% for page in results.web_matches.pages %}
+                                <div class="bg-gray-50 p-3 rounded">
+                                    <a href="{{ page.url }}" target="_blank" class="text-blue-600 hover:text-blue-800">
+                                        {{ page.title }}
+                                    </a>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+
+                <!-- Text Detection -->
+                {% if results.text %}
+                    <div class="mb-6">
+                        <h2 class="text-xl font-semibold mb-3">Detected Text</h2>
+                        <div class="bg-gray-50 p-3 rounded">
+                            <pre class="whitespace-pre-wrap">{{ results.text }}</pre>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('imageForm');
+    const dropArea = document.getElementById('dropArea');
+    const fileInput = document.getElementById('image-upload');
+    const browseButton = document.getElementById('browse-button');
+    const submitButton = document.getElementById('submit-button');
+    const previewContainer = document.getElementById('preview-container');
+    const previewImage = document.getElementById('preview-image');
+    const uploadText = document.getElementById('upload-text');
+    const removeButton = document.getElementById('remove-image');
+    const clipboardInput = document.getElementById('clipboard-image');
+
+    function showPreview(file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewImage.src = e.target.result;
+            previewContainer.classList.remove('hidden');
+            uploadText.classList.add('hidden');
+            submitButton.disabled = false;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function resetForm() {
+        fileInput.value = '';
+        clipboardInput.value = '';
+        previewContainer.classList.add('hidden');
+        uploadText.classList.remove('hidden');
+        submitButton.disabled = true;
+        previewImage.src = '';
+    }
+
+    // Handle browse button click
+    browseButton.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    // Handle file selection
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file && file.type.startsWith('image/')) {
+            showPreview(file);
+        }
+    });
+
+    // Handle drag and drop
+    dropArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropArea.classList.add('border-blue-500');
+    });
+
+    dropArea.addEventListener('dragleave', () => {
+        dropArea.classList.remove('border-blue-500');
+    });
+
+    dropArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropArea.classList.remove('border-blue-500');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+            fileInput.files = e.dataTransfer.files;
+            showPreview(file);
+        }
+    });
+
+    // Handle clipboard paste
+    document.addEventListener('paste', (e) => {
+        const items = e.clipboardData.items;
+        for (let item of items) {
+            if (item.type.startsWith('image/')) {
+                const file = item.getAsFile();
+                showPreview(file);
+                // Convert the file to base64 for submission
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    clipboardInput.value = e.target.result.split(',')[1];
+                };
+                reader.readAsDataURL(file);
+                break;
+            }
+        }
+    });
+
+    // Handle remove button
+    removeButton.addEventListener('click', resetForm);
+
+    // Form validation
+    form.addEventListener('submit', function(e) {
+        if (!fileInput.files.length && !clipboardInput.value && !document.getElementById('image-url').value) {
+            e.preventDefault();
+            alert('Please select or paste an image.');
+        }
+    });
+});
+</script>
+{% endblock %} 
