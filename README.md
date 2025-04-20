@@ -49,6 +49,12 @@ EBAY_APP_ID=your-ebay-app-id
 GOOGLE_APPLICATION_CREDENTIALS=path/to/your/google-credentials.json
 DJANGO_SECRET_KEY=your-django-secret-key
 DEBUG=True  # Set to False in production
+
+# Database Configuration
+DB_USER=your_postgres_username
+DB_PASSWORD=your_postgres_password
+DB_HOST=localhost
+DB_PORT=5432
 ```
 
 ## Required Environment Variables
@@ -59,6 +65,12 @@ DEBUG=True  # Set to False in production
   - Enable the Vision API
   - Create a service account and download the JSON key file
   - Set this variable to the path of your JSON key file
+
+### Database Configuration
+- `DB_USER`: PostgreSQL username (defaults to 'postgres' if not set)
+- `DB_PASSWORD`: PostgreSQL password (defaults to empty string if not set)
+- `DB_HOST`: Database host (defaults to 'localhost' if not set)
+- `DB_PORT`: Database port (defaults to '5432' if not set)
 
 ### eBay API
 - `EBAY_APP_ID`: Your eBay Developer Application ID
